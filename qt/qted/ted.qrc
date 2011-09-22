@@ -2,7 +2,6 @@
     <qresource prefix="/">
         <file>images/download.png</file>
         <file>images/directory.png</file>
-        <file>images/LG.ico</file>
         <file>images/about.png</file>
         <file>images/cancel.png</file>
         <file>images/linux.png</file>
