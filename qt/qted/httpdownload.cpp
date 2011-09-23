@@ -22,11 +22,6 @@ HttpDownload::HttpDownload(QObject * parent): QObject(parent){
                                      this,SLOT(slotRequestFinished(int, bool)));
 }
 
-
-/**
- * 파일에 http 접속 확인
- */
-
 int HttpDownload::downloadFile(QString host, QString port, QString targetUrl, QString targetLocation, QString fileName){
     qDebug() << "Download host : " << host;
     qDebug() << "Download port : " << port;
@@ -75,7 +70,7 @@ bool HttpDownload::conFinish(){
 
 void HttpDownload::slotResponseHeaderReceived( const QHttpResponseHeader & resp ){
 
-//    //리다이렉트 처리
+//    //redirect
 //    QString location = resp.value("Location");
 //    if( !location.isEmpty() && resp.statusCode() == 302) {
 //        _redirectFlag = true;
@@ -92,7 +87,7 @@ void HttpDownload::slotResponseHeaderReceived( const QHttpResponseHeader & resp 
 //        emit signalResponseContentLength(length);
     }
 
-    //사용자가 파일 명을 지정한경우
+    //user define!!
     if(!this->fileName.isEmpty())
             return;
 
@@ -127,6 +122,8 @@ void HttpDownload::slotDataReadProgress(int readBytes, int totalBytes){
 }
 
 void HttpDownload::slotRequestFinished(int id, bool error){
+
+    qDebug() << "ERROR = " << id << "\t" << error;
 
     if(error){
             _downSuccess = false;

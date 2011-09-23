@@ -85,6 +85,8 @@ private:
 
     void checkDownloadedContent(QString dir);
 
+    bool isOnlineNetworkConnection();
+
 private slots:
     void slotFinished(QNetworkReply *reply);
 

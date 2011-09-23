@@ -6,7 +6,7 @@
 
 QT += core gui network webkit
 
-TARGET = TedDownloader
+TARGET = QTed
 TEMPLATE = app
 
 SOURCES += main.cpp\

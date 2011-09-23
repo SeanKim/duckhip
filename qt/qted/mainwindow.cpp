@@ -37,7 +37,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(ui->webView, SIGNAL(loadFinished(bool)), this, SLOT(slotLoadFinished(bool)));
 
-    //기타 UI 설정
+    //UI configuration
     lineEdit = new QLineEdit(ui->statusBar);
     progressBar = new QProgressBar(ui->statusBar);
     progressIndicator = new QProgressIndicator(ui->statusBar);
@@ -64,6 +64,7 @@ void MainWindow::init()
     currentItemIndex = -1;
     ui->statusBar->showMessage("");
     progressBar->setValue(0);
+    progressIndicator->stopAnimation();
     lineEdit->setText("");
     actionDownload->setEnabled(true);
     actionDirectory->setEnabled(true);
@@ -133,94 +134,100 @@ void MainWindow::getTEDSubtitlesByTalkID(QString takId)
 
 void MainWindow::slotFinished(QNetworkReply *reply)
 {
-    switch(httpMode){
+    if( isOnlineNetworkConnection() ){
 
-        //TED 목록 JSON 파일 수신
-    case MODE_GET_TRANSLATOR:
-        {
-            QByteArray ba;
-            QBuffer buffer(&ba);
+        switch(httpMode){
 
-            if ( !buffer.open(QIODevice::WriteOnly) ){
-                ui->statusBar->showMessage("translator file read error");
+            //receive JSON stream(TED list of item)
+        case MODE_GET_TRANSLATOR:
+            {
+                QByteArray ba;
+                QBuffer buffer(&ba);
+
+                if ( !buffer.open(QIODevice::WriteOnly) ){
+                    ui->statusBar->showMessage("translator file read error");
+                }
+
+                buffer.write(reply->readAll());
+                buffer.close();
+
+                if( parseTranslationJson(ba) ){
+                    ui->statusBar->showMessage("Downloaded item list from TED");
+                } else {
+                    ui->statusBar->showMessage("translator file download error from TED");
+                }
+
+                checkDownloadedContent(downloadPath);
+
+                progressIndicator->stopAnimation();
             }
+            break;
 
-            buffer.write(reply->readAll());
-            buffer.close();
+            //receive item by talk id
+        case MODE_GET_TALKID:
+            {
+                QByteArray ba;
+                QBuffer buffer(&ba);
 
-            if( parseTranslationJson(ba) ){
-                ui->statusBar->showMessage("Downloaded item list from TED");
-            } else {
-                ui->statusBar->showMessage("translator file download error from TED");
+                if ( !buffer.open(QIODevice::WriteOnly) ){
+                    ui->statusBar->showMessage("resource file read error");
+                }
+
+                buffer.write(reply->readAll());
+                buffer.close();
+
+                parseResourceItem(ba);
+
+                httpMode = MODE_GET_SUBTITLE;
+                getTEDSubtitlesByTalkID(contents.at(currentItemIndex)->talkId);
             }
+            break;
 
-            checkDownloadedContent(downloadPath);
+            //receive subtitle JSON stream
+        case MODE_GET_SUBTITLE:
+            {
+                QByteArray ba;
+                QBuffer buffer(&ba);
 
-            progressIndicator->stopAnimation();
+                if ( !buffer.open(QIODevice::WriteOnly) ){
+                    ui->statusBar->showMessage(ERROR_SUBTITLE_READ);
+                }
+
+                buffer.write(reply->readAll());
+                buffer.close();
+
+                QString subtitle = convertTEDSubtitlesToSMISubtitles(contents.at(currentItemIndex)->title, ba, contents.at(currentItemIndex)->introDuration);
+
+                //SMI File Write
+                QString filename = contents.at(currentItemIndex)->fileName + ".smi";
+
+                qDebug() << "SMI FILE NAME = " << filename;
+
+                QFile file(this->downloadPath + "/" + filename);
+                if (!file.open(QIODevice::WriteOnly)) {
+                    qWarning() << ERROR_SMI_WRITE;
+                }
+
+                file.write(subtitle.toAscii());
+                file.close();
+
+                //check redirect URL
+                QHttpRequestHeader header("GET", contents.at(currentItemIndex)->downloadUri);
+                header.setValue("Host", HOST_DOWNLOAD);
+
+                redirectChecker.setHost(HOST_DOWNLOAD);
+                redirectChecker.request(header);
+
+            }
+            break;
+
+        default:
+            break;
         }
-        break;
 
-        //talk id 기반의 아이템 정보 수신
-    case MODE_GET_TALKID:
-        {
-            QByteArray ba;
-            QBuffer buffer(&ba);
-
-            if ( !buffer.open(QIODevice::WriteOnly) ){
-                ui->statusBar->showMessage("resource file read error");
-            }
-
-            buffer.write(reply->readAll());
-            buffer.close();
-
-            parseResourceItem(ba);
-
-            httpMode = MODE_GET_SUBTITLE;
-            getTEDSubtitlesByTalkID(contents.at(currentItemIndex)->talkId);
-        }
-        break;
-
-        //아이템에 대한 자막 JSON 파일 수신
-    case MODE_GET_SUBTITLE:
-        {
-            QByteArray ba;
-            QBuffer buffer(&ba);
-
-            if ( !buffer.open(QIODevice::WriteOnly) ){
-                ui->statusBar->showMessage(ERROR_SUBTITLE_READ);
-            }
-
-            buffer.write(reply->readAll());
-            buffer.close();
-
-            QString subtitle = convertTEDSubtitlesToSMISubtitles(contents.at(currentItemIndex)->title, ba, contents.at(currentItemIndex)->introDuration);
-
-            //SMI File Write
-            QString filename = contents.at(currentItemIndex)->fileName + ".smi";
-
-            qDebug() << "SMI FILE NAME = " << filename;
-
-            QFile file(this->downloadPath + "/" + filename);
-            if (!file.open(QIODevice::WriteOnly)) {
-                qWarning() << ERROR_SMI_WRITE;
-            }
-
-            file.write(subtitle.toAscii());
-            file.close();
-
-            //리다이렉트 체크
-            QHttpRequestHeader header("GET", contents.at(currentItemIndex)->downloadUri);
-            header.setValue("Host", HOST_DOWNLOAD);
-
-            redirectChecker.setHost(HOST_DOWNLOAD);
-            redirectChecker.request(header);
-
-        }
-        break;
-
-    default:
-        break;
-
+    } else {
+        QMessageBox::warning(this, "Cannot connect to TED", "Please, check your network settings...");
+        init();
     }
 }
 
@@ -296,34 +303,35 @@ QString MainWindow::convertTEDSubtitlesToSMISubtitles(QString title, QByteArray 
 
 void MainWindow::slotDownload()
 {
-    QModelIndexList entryList = ui->listWidget->selectionModel()->selectedRows();
 
-    if( entryList.length() < 1 ){
-        ui->statusBar->showMessage("Please, select video item!!!");
-        return;
-    }
+        QModelIndexList entryList = ui->listWidget->selectionModel()->selectedRows();
 
-    actionDownload->setEnabled(false);
-    actionDirectory->setEnabled(false);
-    actionCancel->setEnabled(true);
-    lineEdit->setText("");
-
-    //다운로드 목록 flag 체크
-    for(int i=0; i<entryList.length(); i++){
-        int index = entryList.at(i).row();
-        contents.value(index)->downloadEnable = true;
-
-        //첫번째 다운로드 인덱스 설정
-        if(i == 0){
-            currentItemIndex = index;
+        if( entryList.length() < 1 ){
+            ui->statusBar->showMessage("Please, select video item!!!");
+            return;
         }
-    }
 
-    count = 0;
-    totalCount = entryList.length();
+        actionDownload->setEnabled(false);
+        actionDirectory->setEnabled(false);
+        actionCancel->setEnabled(true);
+        lineEdit->setText("");
 
-    httpMode = MODE_GET_TALKID;
-    getResourceItem(contents.at(currentItemIndex)->itemUri);
+        //retrieve download items
+        for(int i=0; i<entryList.length(); i++){
+            int index = entryList.at(i).row();
+            contents.value(index)->downloadEnable = true;
+
+            //set up first index of download item
+            if(i == 0){
+                currentItemIndex = index;
+            }
+        }
+
+        count = 0;
+        totalCount = entryList.length();
+
+        httpMode = MODE_GET_TALKID;
+        getResourceItem(contents.at(currentItemIndex)->itemUri);
 }
 
 void MainWindow::slotDirectory()
@@ -346,12 +354,12 @@ void MainWindow::slotToggled(bool flag)
 
     QModelIndexList entryList = ui->listWidget->selectionModel()->selectedRows();
 
-    //여기 메모리 릭이 있다. item 객체 사용후 삭제해야지...아님 멤버로 빼덩가..
     if( entryList.length() == 1 ){
         QListWidgetItem *item = new QListWidgetItem(ui->listWidget);
 
         int index = entryList.first().row();
         item->setText(contents.at(index)->fileName);
+        item->setToolTip("DELETE_OBJECT");  //FIXME sign for delete object
         slotItemClicked(item);
     }
 }
@@ -376,16 +384,22 @@ void MainWindow::slotItemClicked(QListWidgetItem *clickedItem)
             ui->webView->setHtml(WEBVIEW_HTML);
         }
     }
+
+    //delete item
+    if( clickedItem->toolTip() == "DELETE_OBJECT" ){
+        qDebug() << "DELETE_OBJECT";
+        delete clickedItem;
+    }
 }
 
 void MainWindow::slotDownloadFinished(int id, bool isError)
 {
     sender()->deleteLater();
 
-    qDebug() << "slotDownloadFinished ID = " << QString::number(id);
+    qDebug() << "slotDownloadFinished ID = " << QString::number(id) << endl << "isError = " << isError;
 
     if( isError ){
-        //다운로드 실패 (실패한경우 붉은색으로 보여주고, 다운로드 플래그는 true로 설정
+        //case : Fail download - item color = RED , download complete flag = TRUE
         ui->listWidget->item(currentItemIndex)->setBackgroundColor(Qt::red);
         contents.value(currentItemIndex)->downloadComplete = true;
     } else {
@@ -394,7 +408,7 @@ void MainWindow::slotDownloadFinished(int id, bool isError)
         ui->listWidget->item(currentItemIndex)->setBackgroundColor(Qt::yellow);
     }
 
-    //다음 아이템 트리거
+    //trigger next download item
     int j;
     for(j=0; j<contents.size(); j++){
         if( contents.at(j)->downloadEnable && currentItemIndex < j && !contents.at(j)->downloadComplete){
@@ -473,7 +487,7 @@ void MainWindow::downloadVideo(int index)
 
 void MainWindow::checkDownloadedContent(QString dir)
 {
-    //아이템 목록 배경색 초기화
+    //initialize background color of listWidget
     for(int i=0; i<contents.size(); i++){
             ui->listWidget->item(i)->setBackgroundColor(Qt::transparent);
     }
@@ -490,24 +504,54 @@ void MainWindow::checkDownloadedContent(QString dir)
     }
 }
 
+bool MainWindow::isOnlineNetworkConnection()
+{
+//    bool flag = false;
+//    QNetworkConfigurationManager mgr;
+//    QList<QNetworkConfiguration> activeConfigs = mgr.allConfigurations(QNetworkConfiguration::Active);
+
+//    if (activeConfigs.count() > 0){
+//        flag = mgr.isOnline();
+//    }
+
+//    return flag;
+
+    QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
+    bool result = false;
+
+    foreach (QNetworkInterface iface, interfaces){
+        if ( iface.flags().testFlag(QNetworkInterface::IsUp)
+             && !iface.flags().testFlag(QNetworkInterface::IsLoopBack) ) {
+
+            // details of connection
+            qDebug() << "name:" << iface.name() << endl
+                    << "ip addresses:" << endl
+                    << "mac:" << iface.hardwareAddress() << endl;
+
+            // this loop is important
+            QList<QNetworkAddressEntry> addressEntries = iface.addressEntries();
+
+            foreach(QNetworkAddressEntry entry, addressEntries){
+                qDebug() << entry.ip().toString()
+                        << " / " << entry.netmask().toString() << endl;
+
+                // we have an interface that is up, and has an ip address
+                // therefore the link is present
+
+                // we will only enable this check on first positive,
+                // all later results are incorrect
+
+                // FIXME : Do not support VPN NETWORK DEVICES
+                if (result == false)
+                    result = true;
+            }
+        }
+    }
+
+    return result;
+}
+
 MainWindow::~MainWindow()
 {
     delete ui;
-}
-
-
-void MainWindow::debugItem(int index)
-{
-    qDebug() << "============================================";
-    qDebug() << "item index = " << QString::number(index);
-    qDebug() << "itemUri = " << contents.at(index)->itemUri;
-    qDebug() << "downloadUri = " << contents.at(index)->downloadUri;
-    qDebug() << "htmlTag = " <<contents.at(index)->htmlTag;
-    qDebug() << "title = " << contents.at(index)->title;
-    qDebug() << "fileName = " << contents.at(index)->fileName;
-    qDebug() << "date = " << contents.at(index)->date;
-    qDebug() << "introDuration = " << QString::number(contents.at(index)->introDuration);
-    qDebug() << "httpDownloadId = " << QString::number(contents.at(index)->httpDownloadId);
-    qDebug() << "downloadEnable = " << QString::number(contents.at(index)->downloadEnable);
-    qDebug() << "============================================";
 }
