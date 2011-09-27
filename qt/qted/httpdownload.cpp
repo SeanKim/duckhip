@@ -123,8 +123,6 @@ void HttpDownload::slotDataReadProgress(int readBytes, int totalBytes){
 
 void HttpDownload::slotRequestFinished(int id, bool error){
 
-    qDebug() << "ERROR = " << id << "\t" << error;
-
     if(error){
             _downSuccess = false;
             _conFinish = true;
