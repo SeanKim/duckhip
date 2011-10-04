@@ -6,7 +6,7 @@
 
 QT += core gui network webkit
 
-TARGET = QTed
+TARGET = QTED
 TEMPLATE = app
 
 SOURCES += main.cpp\
