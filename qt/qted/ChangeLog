@@ -1,0 +1,14 @@
+2010-09-24  Sean Kim  <duckhip@gmail.com>
+
+        Fix item index
+
+        - FIXED : 다운로드 목록 선택시 sort 하지 않는 오류 수정
+        - ADDED : 다운로드 실패시 파일 삭제
+
+2011-10-04  Sean Kim  <duckhip@gmail.com>
+
+        First released by Sean Kim.
+
+        최초 릴리즈
+        
+        * All files...
