@@ -316,6 +316,9 @@ void MainWindow::slotDownload()
         actionCancel->setEnabled(true);
         lineEdit->setText("");
 
+        //ascending order using the quicksort
+        qSort(entryList.begin(), entryList.end());
+
         //retrieve download items
         for(int i=0; i<entryList.length(); i++){
             int index = entryList.at(i).row();
@@ -325,6 +328,8 @@ void MainWindow::slotDownload()
             if(i == 0){
                 currentItemIndex = index;
             }
+
+            qDebug() << "DOWNLOAD INDEX = " << index;
         }
 
         count = 0;
@@ -359,7 +364,7 @@ void MainWindow::slotToggled(bool flag)
 
         int index = entryList.first().row();
         item->setText(contents.at(index)->fileName);
-        item->setToolTip("DELETE_OBJECT");  //FIXME sign for delete object
+        item->setToolTip("OBJECT_GC");  //FIXME sign for delete object
         slotItemClicked(item);
     }
 }
@@ -386,7 +391,7 @@ void MainWindow::slotItemClicked(QListWidgetItem *clickedItem)
     }
 
     //delete item
-    if( clickedItem->toolTip() == "DELETE_OBJECT" ){
+    if( clickedItem->toolTip() == "OBJECT_GC" ){
         qDebug() << "DELETE_OBJECT";
         delete clickedItem;
     }
@@ -402,6 +407,11 @@ void MainWindow::slotDownloadFinished(int id, bool isError)
         //case : Fail download - item color = RED , download complete flag = TRUE
         ui->listWidget->item(currentItemIndex)->setBackgroundColor(Qt::red);
         contents.value(currentItemIndex)->downloadComplete = true;
+
+        //remove files
+        QFile(contents.at(currentItemIndex)->fileName + ".smi").remove();
+        QFile(contents.at(currentItemIndex)->fileName + ".mp4").remove();
+
     } else {
         contents.at(currentItemIndex)->httpDownloadId = -1;
         contents.value(currentItemIndex)->downloadComplete = true;
@@ -489,7 +499,7 @@ void MainWindow::checkDownloadedContent(QString dir)
 {
     //initialize background color of listWidget
     for(int i=0; i<contents.size(); i++){
-            ui->listWidget->item(i)->setBackgroundColor(Qt::transparent);
+        ui->listWidget->item(i)->setBackgroundColor(Qt::transparent);
     }
 
     QFileInfoList fileList = QDir(dir).entryInfoList(QStringList()<<"*.mp4");
