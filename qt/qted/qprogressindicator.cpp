@@ -1,4 +1,4 @@
-#include "QProgressIndicator.h"
+#include "qprogressindicator.h"
 
 #include <QPainter>
 

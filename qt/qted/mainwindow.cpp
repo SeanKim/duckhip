@@ -1,5 +1,5 @@
 #include <QtNetwork>
-#include <Qtcore>
+#include <QtCore>
 #include <QtScript/QScriptEngine>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"

@@ -1,4 +1,4 @@
-#include "HttpDownload.h"
+#include "httpdownload.h"
 
 #include <QFile>
 #include <QFileInfo>
