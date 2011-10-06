@@ -1,7 +1,7 @@
 #ifndef DEFINE_H
 #define DEFINE_H
 
-const QString VERSION = "0.1.0";
+const QString VERSION = "0.2.0";
 
 const QString APP_TITLE = "TED Viewer and Downloader [Ver " + VERSION + "] - Download directory : %1";
 
