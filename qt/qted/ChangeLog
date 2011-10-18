@@ -1,3 +1,10 @@
+2010-10-18  Sean Kim  <duckhip@gmail.com>
+
+        Fix parsing resource
+
+        - FIXED : 다운로드시 특정 아이템에 대한 파싱 기능 오류 수정
+        - ADDED : 테스트용 아이템 디버깅 메서드 추가
+
 2010-09-24  Sean Kim  <duckhip@gmail.com>
 
         Fix item index

@@ -235,9 +235,14 @@ void MainWindow::parseResourceItem(QByteArray byteArray)
 {
     QString item(byteArray);
 
-    QString talkId = item.split(";ti=").at(1).split("&").at(0);
-    int introDuration = item.split(";introDuration=").at(1).split("&").at(0).toInt();
-    QString downloadUri = item.split("\">High-res video").at(0).split("download.ted.com").last();
+    //some content dose not include 'ti' tag
+//    QString talkId = item.split(";ti=").at(1).split("&").at(0);
+//    int introDuration = item.split(";introDuration=").at(1).split("&").at(0).toInt();
+//    QString downloadUri = item.split("\">High-res video").at(0).split("download.ted.com").last();
+
+    QString talkId = item.split("talkID").at(1).split(";").first().remove("=").trimmed();
+    int introDuration = item.split("introDuration:").at(1).split(",").first().toInt();
+    QString downloadUri = item.split("\">High-res video").first().split("download.ted.com").last();
 
     contents.value(currentItemIndex)->talkId = talkId;
     contents.value(currentItemIndex)->introDuration = introDuration;
@@ -330,6 +335,8 @@ void MainWindow::slotDownload()
             }
 
             qDebug() << "DOWNLOAD INDEX = " << index;
+            debugItem(currentItemIndex);
+
         }
 
         count = 0;
@@ -559,6 +566,15 @@ bool MainWindow::isOnlineNetworkConnection()
     }
 
     return result;
+}
+
+void MainWindow::debugItem(int index)
+{
+    qDebug() << "downloadUri = " << contents.at(index)->downloadUri;
+    qDebug() << "fileName = " << contents.at(index)->fileName;
+    qDebug() << "itemUri = " << contents.at(index)->itemUri;
+    qDebug() << "talkId = " << contents.at(index)->talkId;
+    qDebug() << "videoUrl = " << contents.at(index)->videoUrl;
 }
 
 MainWindow::~MainWindow()
