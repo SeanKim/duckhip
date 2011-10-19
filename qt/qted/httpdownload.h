@@ -44,7 +44,6 @@ class HttpDownload : public QObject
 	signals :
             void signalDataReadProgress(int readBytes, int totalBytes);
             void signalDownloadFinished(int id, bool error);
-//            void signalResponseContentLength(long length);
 };
 
 #endif

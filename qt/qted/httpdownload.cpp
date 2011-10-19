@@ -23,9 +23,9 @@ HttpDownload::HttpDownload(QObject * parent): QObject(parent){
 }
 
 int HttpDownload::downloadFile(QString host, QString port, QString targetUrl, QString targetLocation, QString fileName){
-    qDebug() << "Download host : " << host;
-    qDebug() << "Download port : " << port;
-    qDebug() << "Download targetUrl : " << targetUrl;
+//    qDebug() << "Download host : " << host;
+//    qDebug() << "Download port : " << port;
+//    qDebug() << "Download targetUrl : " << targetUrl;
     _downSuccess = false;
     _conFinish = false;
     targetDir = targetLocation;
@@ -70,21 +70,10 @@ bool HttpDownload::conFinish(){
 
 void HttpDownload::slotResponseHeaderReceived( const QHttpResponseHeader & resp ){
 
-//    //redirect
-//    QString location = resp.value("Location");
-//    if( !location.isEmpty() && resp.statusCode() == 302) {
-//        _redirectFlag = true;
-//        QUrl redirectUrl(location);
-//        QHttpRequestHeader header("GET", redirectUrl.encodedPath());
-//        header.setValue("Host", redirectUrl.host());
-//        http->setHost(redirectUrl.host(), redirectUrl.port(80));
-//        http->request(header);
-//    }
-
     QString contentLength = resp.value("Content-Length");
+
     if( !contentLength.isEmpty() ){
         long length = contentLength.toLong();
-//        emit signalResponseContentLength(length);
     }
 
     //user define!!

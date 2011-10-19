@@ -7,6 +7,8 @@
 #include "json.h"
 #include "httpdownload.h"
 
+typedef QPair<QByteArray, QByteArray> RawHeaderPair;
+
 MainWindow::MainWindow(QWidget *parent) :
         QMainWindow(parent),
         ui(new Ui::MainWindow)
@@ -136,93 +138,101 @@ void MainWindow::slotFinished(QNetworkReply *reply)
 {
     if( isOnlineNetworkConnection() ){
 
-        switch(httpMode){
+        int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 
-            //receive JSON stream(TED list of item)
-        case MODE_GET_TRANSLATOR:
-            {
-                QByteArray ba;
-                QBuffer buffer(&ba);
+        if( status == 200 ) {
 
-                if ( !buffer.open(QIODevice::WriteOnly) ){
-                    ui->statusBar->showMessage("translator file read error");
+            switch(httpMode){
+
+                //receive JSON stream(TED list of item)
+            case MODE_GET_TRANSLATOR:
+                {
+                    QByteArray ba;
+                    QBuffer buffer(&ba);
+
+                    if ( !buffer.open(QIODevice::WriteOnly) ){
+                        ui->statusBar->showMessage("translator file read error");
+                    }
+
+                    buffer.write(reply->readAll());
+                    buffer.close();
+
+                    if( parseTranslationJson(ba) ){
+                        ui->statusBar->showMessage("Downloaded item list from TED");
+                    } else {
+                        ui->statusBar->showMessage("translator file download error from TED");
+                    }
+
+                    checkDownloadedContent(downloadPath);
+
+                    progressIndicator->stopAnimation();
                 }
+                break;
 
-                buffer.write(reply->readAll());
-                buffer.close();
+                //receive item by talk id
+            case MODE_GET_TALKID:
+                {
+                    QByteArray ba;
+                    QBuffer buffer(&ba);
 
-                if( parseTranslationJson(ba) ){
-                    ui->statusBar->showMessage("Downloaded item list from TED");
-                } else {
-                    ui->statusBar->showMessage("translator file download error from TED");
+                    if ( !buffer.open(QIODevice::WriteOnly) ){
+                        ui->statusBar->showMessage("resource file read error");
+                    }
+
+                    buffer.write(reply->readAll());
+                    buffer.close();
+
+                    parseResourceItem(ba);
+
+                    httpMode = MODE_GET_SUBTITLE;
+                    getTEDSubtitlesByTalkID(contents.at(currentItemIndex)->talkId);
                 }
+                break;
 
-                checkDownloadedContent(downloadPath);
+                //receive subtitle JSON stream
+            case MODE_GET_SUBTITLE:
+                {
+                    QByteArray ba;
+                    QBuffer buffer(&ba);
 
-                progressIndicator->stopAnimation();
+                    if ( !buffer.open(QIODevice::WriteOnly) ){
+                        ui->statusBar->showMessage(ERROR_SUBTITLE_READ);
+                    }
+
+                    buffer.write(reply->readAll());
+                    buffer.close();
+
+                    QString subtitle = convertTEDSubtitlesToSMISubtitles(contents.at(currentItemIndex)->title, ba, contents.at(currentItemIndex)->introDuration);
+
+                    //SMI File Write
+                    QString filename = contents.at(currentItemIndex)->fileName + ".smi";
+
+                    qDebug() << "SMI FILE NAME = " << filename;
+
+                    QFile file(this->downloadPath + "/" + filename);
+                    if (!file.open(QIODevice::WriteOnly)) {
+                        qWarning() << ERROR_SMI_WRITE;
+                    }
+
+                    file.write(subtitle.toAscii());
+                    file.close();
+
+                    //check redirect URL
+                    QHttpRequestHeader header("GET", contents.at(currentItemIndex)->downloadUri);
+                    header.setValue("Host", HOST_DOWNLOAD);
+
+                    redirectChecker.setHost(HOST_DOWNLOAD);
+                    redirectChecker.request(header);
+
+                }
+                break;
+
+            default:
+                break;
             }
-            break;
-
-            //receive item by talk id
-        case MODE_GET_TALKID:
-            {
-                QByteArray ba;
-                QBuffer buffer(&ba);
-
-                if ( !buffer.open(QIODevice::WriteOnly) ){
-                    ui->statusBar->showMessage("resource file read error");
-                }
-
-                buffer.write(reply->readAll());
-                buffer.close();
-
-                parseResourceItem(ba);
-
-                httpMode = MODE_GET_SUBTITLE;
-                getTEDSubtitlesByTalkID(contents.at(currentItemIndex)->talkId);
-            }
-            break;
-
-            //receive subtitle JSON stream
-        case MODE_GET_SUBTITLE:
-            {
-                QByteArray ba;
-                QBuffer buffer(&ba);
-
-                if ( !buffer.open(QIODevice::WriteOnly) ){
-                    ui->statusBar->showMessage(ERROR_SUBTITLE_READ);
-                }
-
-                buffer.write(reply->readAll());
-                buffer.close();
-
-                QString subtitle = convertTEDSubtitlesToSMISubtitles(contents.at(currentItemIndex)->title, ba, contents.at(currentItemIndex)->introDuration);
-
-                //SMI File Write
-                QString filename = contents.at(currentItemIndex)->fileName + ".smi";
-
-                qDebug() << "SMI FILE NAME = " << filename;
-
-                QFile file(this->downloadPath + "/" + filename);
-                if (!file.open(QIODevice::WriteOnly)) {
-                    qWarning() << ERROR_SMI_WRITE;
-                }
-
-                file.write(subtitle.toAscii());
-                file.close();
-
-                //check redirect URL
-                QHttpRequestHeader header("GET", contents.at(currentItemIndex)->downloadUri);
-                header.setValue("Host", HOST_DOWNLOAD);
-
-                redirectChecker.setHost(HOST_DOWNLOAD);
-                redirectChecker.request(header);
-
-            }
-            break;
-
-        default:
-            break;
+        }else {
+            QMessageBox::warning(this, "Http error", "Error occurred while traversing resources\nHttp status code : " + QString::number(status) );
+            init();
         }
 
     } else {
@@ -234,11 +244,6 @@ void MainWindow::slotFinished(QNetworkReply *reply)
 void MainWindow::parseResourceItem(QByteArray byteArray)
 {
     QString item(byteArray);
-
-    //some content dose not include 'ti' tag
-//    QString talkId = item.split(";ti=").at(1).split("&").at(0);
-//    int introDuration = item.split(";introDuration=").at(1).split("&").at(0).toInt();
-//    QString downloadUri = item.split("\">High-res video").at(0).split("download.ted.com").last();
 
     QString talkId = item.split("talkID").at(1).split(";").first().remove("=").trimmed();
     int introDuration = item.split("introDuration:").at(1).split(",").first().toInt();
@@ -277,7 +282,6 @@ bool MainWindow::parseTranslationJson(QByteArray byteArray)
       ui->listWidget->addItem(item->fileName);
 
       contents << item;
-
     }
 
     return true;
@@ -308,7 +312,6 @@ QString MainWindow::convertTEDSubtitlesToSMISubtitles(QString title, QByteArray 
 
 void MainWindow::slotDownload()
 {
-
         QModelIndexList entryList = ui->listWidget->selectionModel()->selectedRows();
 
         if( entryList.length() < 1 ){
@@ -335,8 +338,6 @@ void MainWindow::slotDownload()
             }
 
             qDebug() << "DOWNLOAD INDEX = " << index;
-            debugItem(currentItemIndex);
-
         }
 
         count = 0;
@@ -523,16 +524,6 @@ void MainWindow::checkDownloadedContent(QString dir)
 
 bool MainWindow::isOnlineNetworkConnection()
 {
-//    bool flag = false;
-//    QNetworkConfigurationManager mgr;
-//    QList<QNetworkConfiguration> activeConfigs = mgr.allConfigurations(QNetworkConfiguration::Active);
-
-//    if (activeConfigs.count() > 0){
-//        flag = mgr.isOnline();
-//    }
-
-//    return flag;
-
     QList<QNetworkInterface> interfaces = QNetworkInterface::allInterfaces();
     bool result = false;
 
@@ -541,16 +532,16 @@ bool MainWindow::isOnlineNetworkConnection()
              && !iface.flags().testFlag(QNetworkInterface::IsLoopBack) ) {
 
             // details of connection
-            qDebug() << "name:" << iface.name() << endl
-                    << "ip addresses:" << endl
-                    << "mac:" << iface.hardwareAddress() << endl;
+//            qDebug() << "name:" << iface.name() << endl
+//                    << "ip addresses:" << endl
+//                    << "mac:" << iface.hardwareAddress() << endl;
 
             // this loop is important
             QList<QNetworkAddressEntry> addressEntries = iface.addressEntries();
 
             foreach(QNetworkAddressEntry entry, addressEntries){
-                qDebug() << entry.ip().toString()
-                        << " / " << entry.netmask().toString() << endl;
+//                qDebug() << entry.ip().toString()
+//                        << " / " << entry.netmask().toString() << endl;
 
                 // we have an interface that is up, and has an ip address
                 // therefore the link is present

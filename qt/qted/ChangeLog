@@ -1,9 +1,12 @@
-2010-10-18  Sean Kim  <duckhip@gmail.com>
+2010-10-19  Sean Kim  <duckhip@gmail.com>
 
         Fix parsing resource
 
         - FIXED : 다운로드시 특정 아이템에 대한 파싱 기능 오류 수정
         - ADDED : 테스트용 아이템 디버깅 메서드 추가
+        					Http 상태 코드에 대한 예외처리 추가
+        - Ver 0.3.0
+        
 
 2010-09-24  Sean Kim  <duckhip@gmail.com>
 
@@ -11,11 +14,13 @@
 
         - FIXED : 다운로드 목록 선택시 sort 하지 않는 오류 수정
         - ADDED : 다운로드 실패시 파일 삭제
+        - Ver 0.2.0
 
 2011-10-04  Sean Kim  <duckhip@gmail.com>
 
         First released by Sean Kim.
 
-        최초 릴리즈
+        최초 릴리즈       
+        - Ver 0.1.0
         
         * All files...
